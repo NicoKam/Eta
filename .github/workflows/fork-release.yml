@@ -1,0 +1,201 @@
+name: Fork Sync & Release
+
+on:
+  schedule:
+    # 每日 20:17 UTC（次日 04:17 北京时间）拉取上游 main，有更新就合并并重新发版
+    - cron: "17 20 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_sync:
+        description: 跳过上游合并，直接构建当前 main
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: fork-sync-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 同步上游并发布
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 检出 fork main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: 合并上游 main
+        id: sync
+        env:
+          SKIP_SYNC: ${{ inputs.skip_sync }}
+        run: |
+          git config user.name "eta-fork-bot"
+          git config user.email "eta-fork-bot@users.noreply.github.com"
+          git remote add upstream https://github.com/Mangi-11/Eta.git
+          git fetch --no-tags upstream main
+          echo "upstream=$(git rev-parse --short upstream/main)" >> "$GITHUB_OUTPUT"
+
+          if [ "$SKIP_SYNC" = "true" ]; then
+            echo "按输入跳过上游合并"
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "上游无新提交"
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git merge --no-edit upstream/main; then
+            echo "合并成功"
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only --diff-filter=U > /tmp/conflicts.txt
+            git merge --abort
+            {
+              echo "自动合并 \`upstream/main\` 失败，以下文件存在冲突："
+              echo
+              sed 's/^/- `/' /tmp/conflicts.txt | sed 's/$/`/'
+              echo
+              echo "处理：本地执行 \`git fetch upstream && git merge upstream/main\`，解决冲突后推送 main；"
+              echo "本工作流下一次运行会自动重新构建并发版。若冲突来自上游已实现「回车发送」，"
+              echo "说明可以弃用本 fork。"
+            } > /tmp/conflict-body.md
+            cat /tmp/conflict-body.md
+            echo "conflicts=true" >> "$GITHUB_OUTPUT"
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 上报合并冲突
+        if: steps.sync.outputs.conflicts == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create upstream-sync --color "d93f0b" --description "上游同步冲突" 2>/dev/null || true
+          existing=$(gh issue list --label upstream-sync --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file /tmp/conflict-body.md
+          else
+            gh issue create \
+              --title "上游同步冲突：需要手动合并 upstream/main" \
+              --body-file /tmp/conflict-body.md \
+              --label upstream-sync
+          fi
+          exit 1
+
+      # 上游没动、当前 main 也和最近一次发版标签一致时，不重复消耗构建分钟数
+      - name: 判断是否需要发版
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.sync.outputs.merged }}" = "true" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          latest_tag=$(git describe --tags --abbrev=0 --match 'v*-fork.*' 2>/dev/null || true)
+          if [ -n "$latest_tag" ] && [ "$(git rev-parse HEAD^{commit})" = "$(git rev-list -n1 "$latest_tag")" ]; then
+            echo "main 与最近发版 $latest_tag 一致，跳过构建"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 配置构建环境
+        if: steps.gate.outputs.build == 'true'
+        uses: ./.github/actions/setup-build
+
+      - name: 还原签名证书
+        if: steps.gate.outputs.build == 'true'
+        env:
+          ETA_RELEASE_KEYSTORE_BASE64: ${{ secrets.ETA_RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ETA_RELEASE_KEYSTORE_BASE64" ]; then
+            echo "::error::缺少 ETA_RELEASE_KEYSTORE_BASE64，请先配置签名 secrets。"
+            exit 1
+          fi
+          printf '%s' "$ETA_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/fork-release.jks"
+
+      # 版本号与包名只在构建时注入，源码保持与上游一致，减小下次合并冲突面
+      - name: 注入 fork 版本号与包名
+        id: version
+        if: steps.gate.outputs.build == 'true'
+        env:
+          PACKAGE_SUFFIX: ${{ vars.FORK_PACKAGE_SUFFIX }}
+        run: |
+          upstream_name=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
+          date=$(date +%Y%m%d)
+          fork_name="${upstream_name}-fork.${date}"
+          fork_code=$((10#${date} * 100 + 50))
+          sed -i -E "s/^([[:space:]]*)versionCode = [0-9]+/\1versionCode = ${fork_code}/" app/build.gradle.kts
+          sed -i -E "s/^([[:space:]]*)versionName = \"[^\"]+\"/\1versionName = \"${fork_name}\"/" app/build.gradle.kts
+
+          if [ -n "$PACKAGE_SUFFIX" ]; then
+            # 与官方包并存时，包名与全局唯一标识必须同步改写，否则会装不上或运行请求打到官方运行时
+            sed -i -E "s/^([[:space:]]*)versionNameSuffix = buildMetadataSuffix/\1applicationIdSuffix = \"${PACKAGE_SUFFIX}\"\n\1versionNameSuffix = buildMetadataSuffix/" app/build.gradle.kts
+            sed -i "s/io\.github\.mangi\.eta\.permission\.CONTROL_ACCESSIBILITY_PROTECTION/io.github.mangi.eta${PACKAGE_SUFFIX}.permission.CONTROL_ACCESSIBILITY_PROTECTION/g" \
+              app/src/main/AndroidManifest.xml \
+              app/src/main/kotlin/io/github/mangi/eta/agent/accessibility/AccessibilityProtectionProtocol.kt
+            sed -i "s/io\.github\.mangi\.eta\.accessibility\.health/io.github.mangi.eta${PACKAGE_SUFFIX}.accessibility.health/g" \
+              app/src/main/AndroidManifest.xml \
+              app/src/main/kotlin/io/github/mangi/eta/agent/accessibility/AccessibilityProtectionProtocol.kt
+            sed -i "s/private const val MODULE_PACKAGE = \"io\.github\.mangi\.eta\"/private const val MODULE_PACKAGE = \"io.github.mangi.eta${PACKAGE_SUFFIX}\"/" \
+              app/src/main/kotlin/io/github/mangi/eta/agent/runtime/AgentRuntimeWire.kt
+            sed -i "s/private const val ETA_PACKAGE_NAME = \"io\.github\.mangi\.eta\"/private const val ETA_PACKAGE_NAME = \"io.github.mangi.eta${PACKAGE_SUFFIX}\"/" \
+              app/src/main/kotlin/io/github/mangi/eta/agent/runtime/EntrySurfaceGuard.kt
+            sed -i 's|<string name="app_name">Eta</string>|<string name="app_name">Eta Fork</string>|' \
+              app/src/main/res/values/strings.xml \
+              "app/src/main/res/values-b+zh+Hans/strings.xml" \
+              "app/src/main/res/values-b+zh+Hant/strings.xml"
+          fi
+
+          grep -n 'versionName = \|versionCode =' app/build.gradle.kts | head -3
+          echo "name=${fork_name}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${fork_name}" >> "$GITHUB_OUTPUT"
+
+      - name: 构建 Release APK
+        if: steps.gate.outputs.build == 'true'
+        env:
+          ETA_RELEASE_STORE_FILE: ${{ runner.temp }}/fork-release.jks
+          ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
+          ETA_RELEASE_KEY_ALIAS: ${{ secrets.ETA_RELEASE_KEY_ALIAS }}
+          ETA_RELEASE_KEY_PASSWORD: ${{ secrets.ETA_RELEASE_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon --no-configuration-cache :app:assembleRelease
+
+      - name: 校验 APK
+        id: apk
+        if: steps.gate.outputs.build == 'true'
+        run: |
+          apk=$(ls app/build/outputs/apk/release/Eta-v*.apk | head -1)
+          apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk"
+          aapt2=$(find "$ANDROID_HOME/build-tools" -type f -name aapt2 | sort -V | tail -1)
+          "$aapt2" dump badging "$apk" | head -1
+          echo "path=${apk}" >> "$GITHUB_OUTPUT"
+
+      - name: 推送合并结果
+        if: steps.gate.outputs.build == 'true' && steps.sync.outputs.merged == 'true'
+        run: git push origin HEAD:main
+
+      - name: 发布 Release
+        if: steps.gate.outputs.build == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          APK: ${{ steps.apk.outputs.path }}
+        run: |
+          notes=$(printf 'Fork 构建，包含「回车发送」开关。\n\n- 上游提交：%s\n- 版本号：%s\n' \
+            "${{ steps.sync.outputs.upstream }}" "${{ steps.version.outputs.name }}")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" \
+              --target "$(git rev-parse HEAD)" \
+              --title "$TAG" \
+              --notes "$notes"
+          fi
