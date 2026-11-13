@@ -47,6 +47,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.KeyboardActionHandler
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -77,6 +78,12 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -104,6 +111,7 @@ import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.data.repository.ChatInputSettingsRepository
 import io.github.mangi.eta.data.repository.SpeechSettingsRepository
 import io.github.mangi.eta.ui.app.LocalUiStyle
 import io.github.mangi.eta.ui.markdown.EditorialLineHeightStyle
@@ -176,6 +184,10 @@ internal fun AgentChatInputBar(
     val textFieldState = rememberTextFieldState(initialText = input)
     val speechSettings by remember { SpeechSettingsRepository.settingsFlow() }.collectAsState(initial = null)
     val recognitionEnabled = speechSettings?.recognitionEnabled == true
+    val chatInputSettings by remember { ChatInputSettingsRepository.settingsFlow() }.collectAsState(initial = null)
+    // 开启后输入框向 IME 声明 ImeAction.Send：软键盘回车渲染成发送键并回调 onKeyboardAction；
+    // 物理键盘回车不经 IME，另行在 onPreviewKeyEvent 中拦截。默认关闭保持多行换行输入。
+    val sendOnEnter = chatInputSettings?.sendOnEnter == true
     val dictation = rememberSpeechInput { recognized ->
         textFieldState.edit {
             val range = selection
@@ -189,6 +201,27 @@ internal fun AgentChatInputBar(
     val canSend = textFieldState.text.isNotBlank() ||
         pendingImages.isNotEmpty() ||
         pendingFileReferences.isNotEmpty()
+    // 与发送圆钮共用同一条提交路径：流式期间 onSubmit 走排队（AgentAppState.sendCurrentMessage），
+    // 不会中断当前生成；长按按钮才走 onInterruptAndSubmit。
+    val submitCurrentDraft: (Boolean) -> Unit = { interrupt ->
+        if (canSend) {
+            dictation.cancel()
+            val submittedText = textFieldState.text.toString()
+            textFieldState.clearText()
+            if (interrupt) {
+                onInterruptAndSubmit(submittedText)
+            } else {
+                onSubmit(submittedText)
+            }
+        }
+    }
+    // ImeAction.Send 时输入法把回车渲染为发送键并回调这里；关闭时保持 null，
+    // 回落到 Compose 默认的换行插入。
+    val sendOnEnterKeyboardAction: KeyboardActionHandler? = if (sendOnEnter) {
+        KeyboardActionHandler { submitCurrentDraft(false) }
+    } else {
+        null
+    }
     val density = LocalDensity.current
     val statusBarTopPx = WindowInsets.statusBars.getTop(density)
     var inputContainerTopPx by remember { mutableIntStateOf(0) }
@@ -399,8 +432,35 @@ internal fun AgentChatInputBar(
                         state = textFieldState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .focusRequester(focusRequester),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                            .focusRequester(focusRequester)
+                            .then(
+                                if (sendOnEnter) {
+                                    Modifier.onPreviewKeyEvent { event ->
+                                        // 多行输入框的物理回车在 Compose 里直接 commit "\n"
+                                        // （TextFieldKeyInput 的 NEW_LINE 分支），不会走 IME action，
+                                        // 因此这里必须拦一次；Shift+回车保留换行输入。
+                                        if (event.type != KeyEventType.KeyDown || event.key != Key.Enter) {
+                                            false
+                                        } else if (event.isShiftPressed) {
+                                            textFieldState.edit {
+                                                val range = selection
+                                                replace(range.min, range.max, "\n")
+                                                selection = TextRange(range.min + 1)
+                                            }
+                                            true
+                                        } else {
+                                            submitCurrentDraft(false)
+                                            true
+                                        }
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                        keyboardOptions = KeyboardOptions(
+                            imeAction = if (sendOnEnter) ImeAction.Send else ImeAction.Default,
+                        ),
+                        onKeyboardAction = sendOnEnterKeyboardAction,
                         textStyle = inputTextStyle.copy(color = MiuixTheme.colorScheme.onSurface),
                         cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
                         lineLimits = TextFieldLineLimits.MultiLine(
@@ -468,18 +528,6 @@ internal fun AgentChatInputBar(
                         }
 
                         val showStreamingSend = isStreaming && !isCompacting && canSend
-                        val submitCurrentDraft: (Boolean) -> Unit = { interrupt ->
-                            if (canSend) {
-                                dictation.cancel()
-                                val submittedText = textFieldState.text.toString()
-                                textFieldState.clearText()
-                                if (interrupt) {
-                                    onInterruptAndSubmit(submittedText)
-                                } else {
-                                    onSubmit(submittedText)
-                                }
-                            }
-                        }
 
                         AnimatedVisibility(
                             visible = showStreamingSend,

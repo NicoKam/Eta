@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.ImportContacts
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Inventory
 import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
@@ -78,6 +79,7 @@ import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.config.PowerAssistantTarget
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.model.AppearanceUiStyle
+import io.github.mangi.eta.data.repository.ChatInputSettingsRepository
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.data.update.AppLatestRelease
@@ -686,6 +688,10 @@ private fun SettingsPageContent(
                     )
                 }
 
+                Group(title = stringResource(R.string.settings_input)) {
+                    ChatInputSendOnEnterPreference()
+                }
+
                 Group(title = stringResource(R.string.ui_permissions_560165)) {
                     CouiPreference(
                         title = stringResource(R.string.ui_floating_window_permissions_076b77),
@@ -1141,6 +1147,13 @@ private fun SettingsPageContent(
                     }
                 }
 
+                item(key = "section_input") {
+                    SmallTitle(stringResource(R.string.settings_input))
+                    SettingsGroupCard {
+                        ChatInputSendOnEnterPreference()
+                    }
+                }
+
                 item(key = "section_permissions") {
                     SmallTitle(stringResource(R.string.ui_permissions_560165))
                     SettingsGroupCard {
@@ -1462,6 +1475,45 @@ private fun SwitchPref(
                     SettingsIcon(icon = icon, enabled = enabled, tint = iconTint)
                 },
                 enabled = enabled,
+            )
+        }
+    }
+}
+
+/**
+ * 回车发送开关：状态存放在 DataStore（[ChatInputSettingsRepository]），输入框自己订阅同一条
+ * flow，因此这里改完无需经过聊天舞台的 recomposition 参数链就能即时生效。
+ */
+@Composable
+private fun ChatInputSendOnEnterPreference() {
+    val scope = rememberCoroutineScope()
+    val settings by remember { ChatInputSettingsRepository.settingsFlow() }
+        .collectAsState(initial = null)
+    val checked = settings?.sendOnEnter == true
+    val onCheckedChange: (Boolean) -> Unit = { enabled ->
+        scope.launch { ChatInputSettingsRepository.setSendOnEnter(enabled) }
+    }
+    val title = stringResource(R.string.settings_send_on_enter)
+    val summary = stringResource(R.string.settings_send_on_enter_summary)
+    when (LocalUiStyle.current) {
+        AppearanceUiStyle.COUI -> {
+            CouiSwitchPreference(
+                title = title,
+                summary = summary,
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                icon = { CouiSettingsIcon(Icons.Rounded.Keyboard, SettingsIconColors.Blue) },
+            )
+        }
+        AppearanceUiStyle.MIUIX -> {
+            SwitchPreference(
+                title = title,
+                summary = summary,
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                startAction = {
+                    SettingsIcon(icon = Icons.Rounded.Keyboard, tint = SettingsIconColors.Blue)
+                },
             )
         }
     }
