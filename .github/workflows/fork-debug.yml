@@ -1,0 +1,52 @@
+name: Fork Debug APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug-apk:
+    name: 构建可并存的 Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: 配置构建环境
+        uses: ./.github/actions/setup-build
+
+      # 与正式版并存：仅本次工作流内改 debug 变体的包名，以及必须全局唯一的自定义权限、
+      # ContentProvider authority，不改仓库源码；正式版及其模型配置完全不受影响。
+      - name: 追加 debug 包名后缀与唯一标识
+        shell: bash
+        run: |
+          sed -i 's/versionNameSuffix = "-debug" + buildMetadataSuffix/applicationIdSuffix = ".debug"\n            versionNameSuffix = "-debug" + buildMetadataSuffix/' app/build.gradle.kts
+          sed -i 's/io\.github\.mangi\.eta\.permission\.CONTROL_ACCESSIBILITY_PROTECTION/io.github.mangi.eta.debug.permission.CONTROL_ACCESSIBILITY_PROTECTION/g' app/src/main/AndroidManifest.xml
+          sed -i 's/io\.github\.mangi\.eta\.accessibility\.health/io.github.mangi.eta.debug.accessibility.health/g' app/src/main/AndroidManifest.xml
+          sed -i 's/io\.github\.mangi\.eta\.permission\.CONTROL_ACCESSIBILITY_PROTECTION/io.github.mangi.eta.debug.permission.CONTROL_ACCESSIBILITY_PROTECTION/g' app/src/main/kotlin/io/github/mangi/eta/agent/accessibility/AccessibilityProtectionProtocol.kt
+          sed -i 's/io\.github\.mangi\.eta\.accessibility\.health/io.github.mangi.eta.debug.accessibility.health/g' app/src/main/kotlin/io/github/mangi/eta/agent/accessibility/AccessibilityProtectionProtocol.kt
+          # Agent Runtime 通过硬编码 ComponentName 绑定模块进程；不改这里会绑到已安装的正式版运行时，运行永远等不到结果。
+          sed -i 's/private const val MODULE_PACKAGE = "io\.github\.mangi\.eta"/private const val MODULE_PACKAGE = "io.github.mangi.eta.debug"/' app/src/main/kotlin/io/github/mangi/eta/agent/runtime/AgentRuntimeWire.kt
+          sed -i 's/private const val ETA_PACKAGE_NAME = "io\.github\.mangi\.eta"/private const val ETA_PACKAGE_NAME = "io.github.mangi.eta.debug"/' app/src/main/kotlin/io/github/mangi/eta/agent/runtime/EntrySurfaceGuard.kt
+          grep -n 'MODULE_PACKAGE =' app/src/main/kotlin/io/github/mangi/eta/agent/runtime/AgentRuntimeWire.kt
+          grep -n 'ETA_PACKAGE_NAME =' app/src/main/kotlin/io/github/mangi/eta/agent/runtime/EntrySurfaceGuard.kt
+          grep -n 'applicationIdSuffix' app/build.gradle.kts
+          grep -n 'eta.debug' app/src/main/AndroidManifest.xml
+
+      - name: 构建 Debug APK
+        run: ./gradlew --no-daemon --no-configuration-cache :app:assembleDebug
+
+      - name: 上传 Debug APK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: eta-debug-apk
+          path: app/build/outputs/apk/debug/Eta-v*.apk
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
