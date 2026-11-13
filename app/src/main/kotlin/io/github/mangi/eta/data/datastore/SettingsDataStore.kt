@@ -18,6 +18,7 @@ import io.github.mangi.eta.data.model.AppearanceThemeMode
 import io.github.mangi.eta.data.model.AppearanceTopBarBlurStyle
 import io.github.mangi.eta.data.model.AppearanceUiStyle
 import io.github.mangi.eta.data.model.AssistantOverlaySettings
+import io.github.mangi.eta.data.model.ChatInputSettings
 import io.github.mangi.eta.data.model.ConversationTitleSettings
 import io.github.mangi.eta.data.model.SpeechSettings
 import io.github.mangi.eta.data.model.SubagentSettings
@@ -36,6 +37,7 @@ internal object SettingsDataStore {
     private val SUBAGENT_SETTINGS = stringPreferencesKey("subagent_settings_v1")
     private val CONVERSATION_TITLE_SETTINGS = stringPreferencesKey("conversation_title_settings_v1")
     private val ASSISTANT_OVERLAY_SETTINGS = stringPreferencesKey("assistant_overlay_settings_v1")
+    private val CHAT_INPUT_SETTINGS = stringPreferencesKey("chat_input_settings_v1")
     private val speechJson = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -135,6 +137,26 @@ internal object SettingsDataStore {
     suspend fun setAssistantOverlaySettings(settings: AssistantOverlaySettings) {
         ensureInitialized()
         dataStore.edit { it[ASSISTANT_OVERLAY_SETTINGS] = speechJson.encodeToString(settings) }
+    }
+
+    fun chatInputSettingsFlow(): Flow<ChatInputSettings> {
+        ensureInitialized()
+        return dataStore.data
+            .catch { cause ->
+                if (cause is IOException) emit(emptyPreferences()) else throw cause
+            }
+            .map { prefs ->
+                prefs[CHAT_INPUT_SETTINGS]?.let { raw ->
+                    runCatching { speechJson.decodeFromString<ChatInputSettings>(raw) }.getOrNull()
+                } ?: ChatInputSettings()
+            }
+    }
+
+    suspend fun chatInputSettings(): ChatInputSettings = chatInputSettingsFlow().first()
+
+    suspend fun setChatInputSettings(settings: ChatInputSettings) {
+        ensureInitialized()
+        dataStore.edit { it[CHAT_INPUT_SETTINGS] = speechJson.encodeToString(settings) }
     }
 
     private const val STORE_NAME = "eta_settings"

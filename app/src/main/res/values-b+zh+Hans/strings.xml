@@ -1488,4 +1488,7 @@
   <string name="assistant_overlay_settings_follow_primary_hint">默认继承主对话当前使用的模型</string>
   <string name="assistant_overlay_settings_reasoning_follow_default">跟随默认</string>
   <string name="assistant_overlay_settings_note">单独配置电源键或系统助手唤起的全局对话浮窗所使用的模型与思考等级；日常轻量指令可选用响应更快的轻量模型并降低或关闭思考，主对话仍保留主力模型。</string>
+  <string name="settings_input">输入</string>
+  <string name="settings_send_on_enter">回车发送</string>
+  <string name="settings_send_on_enter_summary">让输入法把回车键显示为发送键，按回车直接发送；外接键盘时 Shift+回车换行</string>
 </resources>
