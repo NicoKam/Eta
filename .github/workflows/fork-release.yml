@@ -78,12 +78,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh label create upstream-sync --color "d93f0b" --description "上游同步冲突" 2>/dev/null || true
-          existing=$(gh issue list --label upstream-sync --state open --json number --jq '.[0].number // empty')
+          gh label create upstream-sync -R "$GITHUB_REPOSITORY" --color "d93f0b" --description "上游同步冲突" 2>/dev/null || true
+          existing=$(gh issue list -R "$GITHUB_REPOSITORY" --label upstream-sync --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body-file /tmp/conflict-body.md
+            gh issue comment "$existing" -R "$GITHUB_REPOSITORY" --body-file /tmp/conflict-body.md
           else
             gh issue create \
+              -R "$GITHUB_REPOSITORY" \
               --title "上游同步冲突：需要手动合并 upstream/main" \
               --body-file /tmp/conflict-body.md \
               --label upstream-sync
@@ -191,10 +192,10 @@ jobs:
         run: |
           notes=$(printf 'Fork 构建，包含「回车发送」开关。\n\n- 上游提交：%s\n- 版本号：%s\n' \
             "${{ steps.sync.outputs.upstream }}" "${{ steps.version.outputs.name }}")
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" --clobber
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" -R "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$TAG" "$APK" \
+            gh release create "$TAG" "$APK" -R "$GITHUB_REPOSITORY" \
               --target "$(git rev-parse HEAD)" \
               --title "$TAG" \
               --notes "$notes"
