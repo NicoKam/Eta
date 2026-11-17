@@ -24,7 +24,7 @@
   <string name="settings_language">Language</string>
   <string name="settings_language_system">Follow system</string>
   <string name="app_name">Eta</string>
-  <string name="xposed_description">A system-level AI agent that takes over Breeno and Super XiaoAI, enables Gemini and Circle to Search, and integrates browser, terminal, and device tools.</string>
+  <string name="xposed_description">A system-level AI agent that enables Gemini and Circle to Search, and integrates browser, terminal, and device tools.</string>
   <string name="agent_accessibility_label">Eta Agent</string>
   <string name="agent_accessibility_description">Read screen content and perform taps, swipes, text input, and other actions to help the agent complete tasks.</string>
   <string name="notification_history_service_label">Eta notification history</string>
@@ -58,7 +58,6 @@
   <string name="action_more">More options</string>
   <string name="action_open_terminal">Open terminal</string>
   <string name="action_open_browser">Open browser</string>
-  <string name="action_launch_kimi_web">Launch Kimi Web</string>
   <string name="route_tools">Tools</string>
   <string name="route_skills" translatable="false">Skills</string>
   <string name="route_permissions">Permissions</string>
@@ -325,7 +324,6 @@
   <string name="ui_contextual_usage_d12810">Context usage</string>
   <string name="ui_context_length_tokens_227860">Context window (tokens)</string>
   <string name="ui_bright_screen_evokes_automatic_voice_input_4358fe">Bright screen evokes automatic voice input</string>
-  <string name="ui_only_take_over_with_agent_prefix_d17556">Only take over with /agent prefix</string>
   <string name="ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d">Only pick levels the model or gateway supports.</string>
   <string name="ui_preferences_and_strategies_2abd3c">Preferences and Strategies</string>
   <string name="ui_stop_a17f70">stop</string>
@@ -347,7 +345,6 @@
   <string name="ui_available_capacity_743337">Available capabilities</string>
   <string name="ui_optional_tools_3097d6">Optional tools</string>
   <string name="ui_name_1be7ae">name</string>
-  <string name="ui_enable_vendor_assistant_custom_models_c8e465">Enable vendor assistant custom models</string>
   <string name="ui_enable_this_provider_683a76">Enable this provider</string>
   <string name="ui_enable_terminal_file_tools_18bb43">Enable terminal/file tools</string>
   <string name="ui_enable_web_browsing_tools_8b6b03">Enable web search, reading and browser</string>
@@ -358,7 +355,6 @@
   <string name="ui_install_087db6">Install</string>
   <string name="ui_convert_google_apps_to_system_apps_0f6d89">Convert Google Apps to system apps</string>
   <string name="ui_this_will_close_the_current_page_and_clear_eta_brows_1cd331">This will close the current page and clear Eta Browser\'s cookies and site data. External browsers are not affected.</string>
-  <string name="ui_xiaobu_xiaoai_compatible_entrance_ae918a">Xiaobu/Xiaoai compatible entrance</string>
   <string name="ui_display_name_ed16be">Display name</string>
   <string name="ui_tool_a72ef1">tool</string>
   <string name="ui_tool_ability_9f0f80">Tools</string>
@@ -440,6 +436,7 @@
   <string name="ui_reset_built_in_configuration_35b6ec">Reset built-in settings</string>
   <string name="ui_lock_screen_evokes_automatic_voice_input_1cde18">Lock screen evokes automatic voice input</string>
   <string name="ui_deep_thinking_enabled_by_default_c032d6">Reasoning enabled by default</string>
+  <string name="settings_default_reasoning_effort">Default reasoning effort</string>
   <string name="tool_tap_area">Tap area</string>
   <string name="tool_current_context">Time and location</string>
   <string name="tool_memory_get">Read memory</string>
@@ -707,20 +704,6 @@
   <string name="page_unauthorized_86bddc">Unauthorized</string>
   <string name="page_use_standard_chat_completions_ee4b1a">Uses the Chat Completions API</string>
   <string name="page_using_typed_items_with_semantic_streaming_events_f9c906">Uses the Responses API with typed Items and semantic streaming events</string>
-  <string name="injected_reasoning">Eta is reasoning…</string>
-  <string name="injected_executing">Eta is working…</string>
-  <string name="injected_completed">Eta completed this task</string>
-  <string name="injected_failed">Eta could not complete the task. Try again later</string>
-  <string name="injected_breeno_custom_model_disabled">Enable Breeno custom models in Eta settings first</string>
-  <string name="injected_breeno_context_unavailable">Breeno context is unavailable</string>
-  <string name="injected_runtime_failed">Agent Runtime failed</string>
-  <string name="injected_breeno_failed">Breeno custom model failed: %1$s</string>
-  <string name="injected_using_tool">Using %1$s</string>
-  <string name="injected_tool">tool</string>
-  <string name="injected_system_tool">system tool</string>
-  <string name="injected_app_tool">app tool</string>
-  <string name="injected_screen_tool">screen tool</string>
-  <string name="injected_reasoning_label">Reasoning</string>
   <string name="tool_ui_agent_browser_a66bd5">Agent browser</string>
   <string name="tool_ui_coloros_notes_6c324c">ColorOS Notes</string>
   <string name="tool_ui_coloros_recording_a4e425">ColorOS recording</string>
@@ -870,7 +853,6 @@
   <string name="state_ui_the_target_with_the_same_name_is_not_a_user_skil_00474b">The target with the same name is not a user skill that can be safely replaced and existing files are not overwritten.</string>
   <string name="state_ui_the_installation_failed_and_automatic_recovery_d_0d9e01">The installation failed and automatic recovery did not complete completely. Eta has retained a recovery backup in the application private directory. Please check the skill list first and stop the installation.</string>
   <string name="state_ui_conversation_switched_selected_path_not_added_5bf91e">Conversation switched, selected path not added</string>
-  <string name="state_ui_xiaobu_s_entrance_needs_to_be_set_to_always_allo_cc74cb">Xiaobu\'s entrance needs to be set to "Always Allow"</string>
   <string name="state_ui_the_selected_file_is_not_a_valid_zip_package_bff052">The selected file is not a valid ZIP package.</string>
   <string name="state_ui_the_selected_path_has_been_added_42b432">The selected path has been added</string>
   <string name="state_ui_the_skill_pack_contains_an_unsafe_file_path_and__d8cfc0">The skill pack contains an unsafe file path and was not installed.</string>
@@ -1007,15 +989,7 @@
   <string name="linux_ssh_tools">SSH remote access</string>
   <string name="linux_ssh_tools_summary">Install the full OpenSSH suite (sshd, ssh-keygen, ssh-agent, and sftp-server); the base environment already includes the ssh/scp/sftp client</string>
   <string name="linux_ssh_tools_ready">sshd, ssh-keygen, and ssh-agent are ready</string>
-  <string name="linux_kimi_tools">Kimi Code</string>
-  <string name="linux_kimi_tools_summary">Install the latest Kimi Code release via npm; requires the Node.js environment first</string>
-  <string name="linux_kimi_tools_ready">Kimi Code is ready; run kimi in the terminal</string>
   <string name="linux_profile_dependency_missing">Install %1$s first</string>
-  <string name="linux_kimi_web_launch">Launch Web UI</string>
-  <string name="linux_kimi_web_starting">Starting…</string>
-  <string name="linux_kimi_web_failed_start">Failed to start Kimi Web</string>
-  <string name="linux_kimi_web_failed_url">Web UI address not found; check background task logs</string>
-  <string name="linux_kimi_web_failed_browser">No browser available</string>
   <string name="linux_profile_stage_checking">Checking the Linux base environment</string>
   <string name="linux_profile_stage_downloading">Downloading %1$s</string>
   <string name="linux_profile_stage_downloading_percent">Downloading %1$s · %2$d%%</string>
@@ -1159,11 +1133,6 @@
   <string name="suggestion_open_wechat_prompt">Open WeChat</string>
   <string name="suggestion_browse_web_prompt">Open Agent Browser, then search for and summarize today’s top technology news</string>
   <string name="suggestion_memory_pressure_prompt">Read /proc/meminfo and /proc/pressure/, focus on PSI (Pressure Stall Information), and summarize current memory pressure and system status</string>
-  <string name="injected_image_data_limit">Image data exceeds the safe limit. Resize the image and try again</string>
-  <string name="injected_image_count_limit">You can attach up to %1$d images at a time. Remove some images and try again</string>
-  <string name="injected_image_input_limit">The image input is too complex. Remove some images or simplify the image data</string>
-  <string name="injected_image_cache_limit">Image reference data is too large to cache safely. Choose the images again or use remote image links</string>
-  <string name="injected_image_unreadable">Some images could not be read. Choose the images again and retry</string>
   <string name="route_mcp_servers">MCP servers</string>
   <string name="route_mcp_server_detail">MCP server</string>
   <string name="mcp_add_server">Add server</string>
@@ -1171,14 +1140,22 @@
   <string name="mcp_empty_title">No MCP servers</string>
   <string name="mcp_empty_summary">Tap to add a server</string>
   <string name="mcp_server_row_summary">%1$d of %2$d tools enabled</string>
+  <string name="mcp_server_row_summary_truncated">%1$d of %2$d tools enabled (truncated)</string>
   <string name="mcp_server_name">Name</string>
   <string name="mcp_server_url">Server URL</string>
   <string name="mcp_bearer_optional">Bearer token (optional)</string>
   <string name="mcp_connecting">Connecting…</string>
   <string name="mcp_name_required">Enter a server name</string>
   <string name="mcp_server_added">Server added. %1$d tools discovered</string>
+  <string name="mcp_server_added_truncated">Server added. %1$d tools imported (catalog truncated)</string>
   <string name="mcp_connection_failed">Could not connect to the MCP server</string>
   <string name="mcp_refreshed">Tool list refreshed · %1$d tools</string>
+  <string name="mcp_refreshed_truncated">Tool list refreshed · %1$d imported (truncated)</string>
+  <string name="mcp_tools_truncated_title">Tool list truncated (%1$d imported)</string>
+  <string name="mcp_tools_truncated_tool_limit">The server catalog exceeded the 2,048-tool per-server limit; remaining tools were not imported.</string>
+  <string name="mcp_tools_truncated_page_limit">Pagination exceeded the 64-page limit; remaining tools were not imported.</string>
+  <string name="mcp_tools_truncated_size_limit">The serialized tool catalog exceeded the safety size budget; remaining tools were not imported.</string>
+  <string name="mcp_tools_truncated_cursor_loop">The server returned a duplicate pagination cursor; discovery stopped early.</string>
   <string name="mcp_refresh_failed">Could not refresh the tool list</string>
   <string name="mcp_refresh_tools">Refresh tools</string>
   <string name="mcp_server_missing">This MCP server no longer exists</string>
@@ -1235,7 +1212,7 @@
   <string name="speech_group_voice">Voice</string>
   <string name="speech_auto_speak">Speak answers automatically</string>
   <string name="speech_auto_speak_summary">Only speaks final answers to voice questions while the assistant overlay is visible</string>
-  <string name="speech_overview_note">Dictation in chat turns speech into editable text first. Answers can be read aloud manually; recording stops playback.</string>
+  <string name="speech_overview_note">Tap the mic in chat to insert editable text, or hold to speak and release to send. Answers can be read aloud manually; recording stops playback.</string>
   <string name="speech_service_and_model">Service &amp; model</string>
   <string name="speech_asr_qwen_realtime">Qwen · Realtime</string>
   <string name="speech_asr_qwen_flash">Qwen · Short audio</string>
@@ -1331,6 +1308,8 @@
   <string name="speech_oss_configure">Configure your own OSS bucket</string>
   <string name="speech_dictation">Voice input</string>
   <string name="speech_dictation_finish">Finish dictation</string>
+  <string name="speech_hold_release_to_cancel">Release to cancel</string>
+  <string name="speech_hold_recognizing_send">Transcribing and sending…</string>
   <string name="speech_read_aloud">Read aloud</string>
   <string name="speech_read_stop">Stop reading</string>
   <string name="speech_disable_auto_read">Disable auto read-aloud</string>
@@ -1486,6 +1465,7 @@
   <string name="chat_queue_status_count">排队中 · %1$d</string>
   <string name="chat_queue_interrupting">插话中</string>
   <string name="chat_queue_steer_now">立即插话发送</string>
+  <string name="chat_queue_steer_images_deferred">Messages with images will be sent next after the current task finishes</string>
   <string name="chat_queue_remove">移除排队消息</string>
   <string name="chat_queue_images_only">[%1$d 张图片]</string>
   <string name="chat_queue_files_only">[%1$d 个文件]</string>
@@ -1521,4 +1501,5 @@
   <string name="settings_input">Input</string>
   <string name="settings_send_on_enter">Enter to send</string>
   <string name="settings_send_on_enter_summary">Turn the keyboard enter key into a send key and submit immediately; Shift+Enter inserts a newline</string>
+  <string name="settings_keep_screen_on">Keep screen on while running</string>
 </resources>
