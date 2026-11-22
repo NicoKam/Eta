@@ -10,10 +10,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.BroadcastFrameClock
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Recomposer
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.ComposeView
@@ -428,7 +430,7 @@ class EtaVoicePanelTouchTest {
             val view = ComposeView(activity)
             view.setParentCompositionContext(recomposer)
             view.setContent {
-                AgentAppTheme(appearance, applyInterfaceScale = false) {
+                AgentAppTheme(appearance) {
                     CompositionLocalProvider(
                         LocalSquircleEnabled provides false,
                         LocalSoftwareKeyboardController provides keyboard,
@@ -436,7 +438,7 @@ class EtaVoicePanelTouchTest {
                         EtaVoicePanel(
                             speechLevel = { 0f },
                             state = state.value,
-                            input = "",
+                            input = remember { TextFieldState() },
                             speech = speech.value,
                             recognitionEnabled = this.recognitionEnabled.value,
                             entranceComplete = entranceComplete.value,
@@ -461,7 +463,7 @@ class EtaVoicePanelTouchTest {
                                 state.value.messages.isNotEmpty(),
                             handoffRunning = false,
                             exitRequested = false,
-                            onInputChange = {},
+                            onInputEdited = {},
                             onSuggestionClick = {},
                             onSubmit = {},
                             onStop = {},
@@ -573,7 +575,12 @@ class EtaVoicePanelTouchTest {
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
             try {
                 view.draw(Canvas(bitmap))
-                for (label in listOf("总结屏幕内容", "解释当前页面", "提取关键信息")) {
+                for (resId in listOf(
+                    R.string.voice_i18n_suggestion_summarize_screen,
+                    R.string.voice_i18n_suggestion_explain_page,
+                    R.string.voice_i18n_suggestion_extract_key_info,
+                )) {
+                    val label = activity.getString(resId)
                     val node = requireNotNull(findByText(label)) { "未找到建议胶囊：$label" }
                     val bounds = node.boundsInRoot
                     val sampleX = bounds.center.x.toInt()

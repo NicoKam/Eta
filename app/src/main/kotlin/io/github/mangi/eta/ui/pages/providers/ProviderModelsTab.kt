@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -40,6 +41,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Tune
@@ -69,15 +73,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.itos.coui.checkbox.Checkbox as CouiCheckbox
-import com.itos.coui.checkbox.CouiCheckboxDefaults
-import com.itos.coui.layout.CouiPageDefaults
-import com.itos.coui.layout.Divider
-import com.itos.coui.switch.CouiSwitchDefaults
-import com.itos.coui.switch.Switch as CouiSwitch
-import com.itos.coui.text.CouiTextKind
-import com.itos.coui.text.Text as CouiText
-import com.itos.coui.theme.CouiTheme
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.auth.ProviderAuthException
@@ -93,6 +88,7 @@ import io.github.mangi.eta.data.repository.ModelRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.app.LocalUiStyle
+import io.github.mangi.eta.ui.components.DecimalDigits
 import io.github.mangi.eta.ui.components.EtaChoiceChip
 import io.github.mangi.eta.ui.components.EtaPreferenceGroupItem
 import io.github.mangi.eta.ui.components.MiuixDialogActions
@@ -102,15 +98,23 @@ import io.github.mangi.eta.ui.components.captureGlassBackdrop
 import io.github.mangi.eta.ui.components.coui.CouiButton
 import io.github.mangi.eta.ui.components.coui.CouiButtonRole
 import io.github.mangi.eta.ui.components.coui.CouiConfirmDialog
+import io.github.mangi.eta.ui.components.coui.CouiPageDefaults
 import io.github.mangi.eta.ui.components.coui.CouiPreference
 import io.github.mangi.eta.ui.components.coui.CouiSearchBarBox
 import io.github.mangi.eta.ui.components.coui.CouiSectionTitle
+import io.github.mangi.eta.ui.components.coui.CouiText
 import io.github.mangi.eta.ui.components.coui.CouiTextField
+import io.github.mangi.eta.ui.components.coui.CouiTextKind
 import io.github.mangi.eta.ui.components.currentGlassOverlayBackdrop
-import io.github.mangi.eta.ui.components.glassOverlayTextFieldColors
 import io.github.mangi.eta.ui.components.rememberGlassBackdrop
 import io.github.mangi.eta.ui.model.ModelSearchQuery
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
+import io.github.suqi8.coui.kmp.basic.Checkbox as CouiCheckbox
+import io.github.suqi8.coui.kmp.basic.HorizontalDivider as CouiDivider
+import io.github.suqi8.coui.kmp.basic.Switch as CouiSwitch
+import io.github.suqi8.coui.kmp.utils.overScrollVertical as couiOverScrollVertical
+import io.github.suqi8.coui.kmp.utils.rememberCOUIFlingBehavior
+import io.github.suqi8.coui.kmp.utils.scrollEndHaptic as couiScrollEndHaptic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -126,11 +130,11 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.glass.GlassDialog
 import top.yukonga.miuix.kmp.glass.GlassFloatingToolbar
 import top.yukonga.miuix.kmp.glass.GlassFloatingToolbarDefaults
+import top.yukonga.miuix.kmp.glass.GlassTextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.glass.Tune
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -262,7 +266,11 @@ internal fun ProviderModelsTab(
                 if (ProviderAuthModes.isOAuth(provider.authMode)) {
                     val sync = ModelRepository.syncRemoteCatalog(catalog)
                     RuntimeConfigRepository.syncToRemotePreferences(EtaApp.serviceInstance)
-                    message = "已同步 ${sync.fetchedCount} 个远端模型"
+                    message = context.resources.getQuantityString(
+                        R.plurals.provider_i18n_synced_remote_models,
+                        sync.fetchedCount,
+                        sync.fetchedCount,
+                    )
                     return@launch
                 }
                 val candidates = ModelRepository.newRemoteModels(provider.id, catalog.models)
@@ -307,20 +315,45 @@ internal fun ProviderModelsTab(
         { scrollState?.overscrollOffset = it }
     }
 
+    val modelListTitle = if (normalizedModelSearchQuery.isBlank()) {
+        stringResource(R.string.provider_model_list_count, provider.models.size)
+    } else {
+        stringResource(
+            R.string.provider_model_list_matches,
+            filteredModels.size,
+            provider.models.size,
+        )
+    }
+
+    val scrollModifier = if (uiStyle == AppearanceUiStyle.COUI) {
+        Modifier
+            .imePadding()
+            .couiScrollEndHaptic()
+            .couiOverScrollVertical()
+    } else {
+        Modifier
+            .scrollEndHaptic()
+            .overScrollVertical(onOffsetChanged = onOverscrollChanged)
+    }
+    val flingBehavior = if (uiStyle == AppearanceUiStyle.COUI) {
+        rememberCOUIFlingBehavior()
+    } else {
+        androidx.compose.foundation.gestures.ScrollableDefaults.flingBehavior()
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .captureGlassBackdrop(tabBackdrop)
-                .scrollEndHaptic()
-                .overScrollVertical(onOffsetChanged = onOverscrollChanged)
+                .then(scrollModifier)
                 .then(if (nestedScrollConnection != null) Modifier.nestedScroll(nestedScrollConnection) else Modifier),
             contentPadding = PaddingValues(
                 start = contentSidePadding,
                 top = contentTopPadding,
                 end = contentSidePadding,
             ),
+            flingBehavior = flingBehavior,
             overscrollEffect = null,
         ) {
             item(key = "actions", contentType = "section") {
@@ -332,8 +365,9 @@ internal fun ProviderModelsTab(
                         fadeOut(selectionFade()),
                 ) {
                     ProviderSection(title = stringResource(R.string.ui_model_management_183414)) {
-                        val pullTitle = if (isFetching) context.getString(R.string.page_retrieving_a880c9)
-                        else context.getString(R.string.page_automatically_pull_from_remote_f883d0)
+                        val pullTitle = stringResource(
+                            if (isFetching) R.string.page_retrieving_a880c9 else R.string.page_automatically_pull_from_remote_f883d0,
+                        )
                         val pullSummary = stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl)
                         val customTitle = stringResource(R.string.ui_add_custom_model_a5ddc0)
                         val customSummary = stringResource(R.string.ui_manually_fill_in_the_display_name_and_model_id_077a7b)
@@ -344,7 +378,7 @@ internal fun ProviderModelsTab(
                                 enabled = !isFetching && !isMutatingModel,
                                 onClick = onPullRemoteModels,
                             )
-                            Divider()
+                            CouiDivider(modifier = Modifier.padding(horizontal = CouiPageDefaults.rowPadding))
                             CouiPreference(
                                 title = customTitle,
                                 summary = customSummary,
@@ -365,11 +399,12 @@ internal fun ProviderModelsTab(
                                 onClick = onOpenAddCustomModel,
                             )
                         }
+                        val failPrefix = stringResource(R.string.page_fail_3e3c80)
                         message?.let {
                             Text(
                                 text = it,
                                 style = MiuixTheme.textStyles.footnote2,
-                                color = if (it.startsWith(context.getString(R.string.page_fail_3e3c80))) StatusError else StatusSuccess,
+                                color = if (it.startsWith(failPrefix)) StatusError else StatusSuccess,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                             )
                         }
@@ -400,15 +435,6 @@ internal fun ProviderModelsTab(
                 }
             }
 
-            val modelListTitle = if (normalizedModelSearchQuery.isBlank()) {
-                context.getString(R.string.provider_model_list_count, provider.models.size)
-            } else {
-                context.getString(
-                    R.string.provider_model_list_matches,
-                    filteredModels.size,
-                    provider.models.size,
-                )
-            }
             if (provider.models.isEmpty() || filteredModels.isEmpty()) {
                 item(key = "models_empty", contentType = "empty") {
                     ProviderSection(
@@ -419,11 +445,13 @@ internal fun ProviderModelsTab(
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = if (provider.models.isEmpty()) {
-                                    context.getString(R.string.page_there_is_no_model_yet_please_pull_it_from_the_remote_ced865)
-                                } else {
-                                    context.getString(R.string.page_no_matching_model_found_ae7e96)
-                                },
+                                text = stringResource(
+                                    if (provider.models.isEmpty()) {
+                                        R.string.page_there_is_no_model_yet_please_pull_it_from_the_remote_ced865
+                                    } else {
+                                        R.string.page_no_matching_model_found_ae7e96
+                                    },
+                                ),
                                 style = MiuixTheme.textStyles.body2,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             )
@@ -574,6 +602,7 @@ internal fun ProviderModelsTab(
         ModelEditDialog(
             show = editingModel != null,
             nativeGemini = provider is GeminiProviderSetting,
+            vertexGemini = (provider as? GeminiProviderSetting)?.isVertexAi == true,
             model = activeEditingModel,
             isNew = isCreatingModel,
             isSaving = isMutatingModel,
@@ -613,7 +642,7 @@ internal fun ProviderModelsTab(
     }
 
     val activeDeleteModel = modelPendingDelete ?: retainedModelPendingDelete
-    val deleteConfirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
+    val deleteConfirmText = stringResource(if (isMutatingModel) R.string.page_deleting_6f941d else R.string.page_delete_3755f5)
     val onConfirmDeleteModel: (Model) -> Unit = { model ->
         scope.launch {
             isMutatingModel = true
@@ -636,7 +665,7 @@ internal fun ProviderModelsTab(
         }
     }
 
-    val batchConfirmText = if (isMutatingModel) context.getString(R.string.page_deleting_6f941d) else context.getString(R.string.page_delete_3755f5)
+    val batchConfirmText = stringResource(if (isMutatingModel) R.string.page_deleting_6f941d else R.string.page_delete_3755f5)
     val batchSummary = pluralStringResource(
         R.plurals.provider_selected_delete_summary,
         selectedModelIds.size,
@@ -672,32 +701,29 @@ internal fun ProviderModelsTab(
 
     when (uiStyle) {
         AppearanceUiStyle.COUI -> {
-            if (modelPendingDelete != null && activeDeleteModel != null) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_delete_model_cf24da),
-                    message = stringResource(R.string.provider_model_delete_summary, activeDeleteModel.displayName),
-                    confirmText = deleteConfirmText,
-                    confirmEnabled = !isMutatingModel,
-                    cancelEnabled = !isMutatingModel,
-                    destructive = true,
-                    onConfirm = { onConfirmDeleteModel(activeDeleteModel) },
-                    onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
-                )
-            }
-            if (showBatchDeleteDialog) {
-                CouiConfirmDialog(
-                    visible = true,
-                    title = stringResource(R.string.ui_delete_model_cf24da),
-                    message = batchSummary,
-                    confirmText = batchConfirmText,
-                    confirmEnabled = !isMutatingModel,
-                    cancelEnabled = !isMutatingModel,
-                    destructive = true,
-                    onConfirm = onConfirmBatchDelete,
-                    onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
-                )
-            }
+            CouiConfirmDialog(
+                visible = modelPendingDelete != null,
+                title = stringResource(R.string.ui_delete_model_cf24da),
+                message = stringResource(R.string.provider_model_delete_summary, activeDeleteModel?.displayName.orEmpty()),
+                confirmText = deleteConfirmText,
+                confirmEnabled = !isMutatingModel && activeDeleteModel != null,
+                cancelEnabled = !isMutatingModel,
+                destructive = true,
+                onConfirm = { activeDeleteModel?.let(onConfirmDeleteModel) },
+                onDismissRequest = { if (!isMutatingModel) modelPendingDelete = null },
+                onDismissFinished = { if (modelPendingDelete == null) retainedModelPendingDelete = null },
+            )
+            CouiConfirmDialog(
+                visible = showBatchDeleteDialog,
+                title = stringResource(R.string.ui_delete_model_cf24da),
+                message = batchSummary,
+                confirmText = batchConfirmText,
+                confirmEnabled = !isMutatingModel,
+                cancelEnabled = !isMutatingModel,
+                destructive = true,
+                onConfirm = onConfirmBatchDelete,
+                onDismissRequest = { if (!isMutatingModel) showBatchDeleteDialog = false },
+            )
         }
         AppearanceUiStyle.MIUIX -> {
             val overlayBackdrop = currentGlassOverlayBackdrop() ?: tabBackdrop
@@ -931,15 +957,11 @@ private fun ModelListItem(
         if (selectionMode) {
             when (LocalUiStyle.current) {
                 AppearanceUiStyle.COUI -> {
-                    val dark = CouiTheme.isDark
-                    val colors = CouiPageDefaults.themeColors(dark)
                     CouiCheckbox(
                         modifier = Modifier.size(24.dp),
-                        checked = checked,
+                        state = if (checked) ToggleableState.On else ToggleableState.Off,
+                        onClick = null,
                         enabled = enabled,
-                        colors = CouiCheckboxDefaults.colors(colors.accent, dark),
-                        shape = CouiCheckboxDefaults.shape,
-                        borderShape = CouiCheckboxDefaults.borderShape,
                     )
                 }
                 AppearanceUiStyle.MIUIX -> {
@@ -968,6 +990,7 @@ private fun ModelListItem(
 private fun ModelEditDialog(
     show: Boolean,
     nativeGemini: Boolean,
+    vertexGemini: Boolean,
     model: Model,
     isNew: Boolean,
     isSaving: Boolean,
@@ -977,15 +1000,21 @@ private fun ModelEditDialog(
     onSubmit: (Model) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
-    val context = LocalContext.current
-    val initialCapabilities = if (nativeGemini) GeminiModelCapabilities.resolveReasoning(model)
-        else model.effectiveReasoningCapabilities
-    val availableEfforts = if (nativeGemini) GeminiModelCapabilities.configurableEfforts else editableReasoningEfforts
-    var displayName by remember(model.id, isNew) { mutableStateOf(model.displayName) }
-    var modelId by remember(model.id, isNew) { mutableStateOf(model.modelId) }
-    var contextWindowOverrideText by remember(model.id, isNew) {
+    val initialCapabilities = when {
+        vertexGemini -> GeminiModelCapabilities.resolveVertexReasoning(model)
+        nativeGemini -> GeminiModelCapabilities.resolveReasoning(model)
+        else -> model.effectiveReasoningCapabilities
+    }
+    val displayNameState = remember(model.id, isNew) { TextFieldState(model.displayName) }
+    val modelIdState = remember(model.id, isNew) { TextFieldState(model.modelId) }
+    val availableEfforts = when {
+        vertexGemini -> GeminiModelCapabilities.requestReasoningCapabilities(modelIdState.text.toString()).supportedEfforts
+        nativeGemini -> GeminiModelCapabilities.configurableEfforts
+        else -> editableReasoningEfforts
+    }
+    val contextWindowOverrideTextState = remember(model.id, isNew) {
         // 早先拉取、未写入窗口的模型也带着远端标注，打开编辑时直接预填。
-        mutableStateOf((model.contextWindowOverride ?: model.contextWindow)?.toString().orEmpty())
+        TextFieldState((model.contextWindowOverride ?: model.contextWindow)?.toString().orEmpty())
     }
     var reasoningOverrideActive by remember(model.id, isNew) {
         mutableStateOf(
@@ -1006,12 +1035,12 @@ private fun ModelEditDialog(
                 .orEmpty() + ReasoningEffort.DEFAULT
         )
     }
-    val contextError = contextWindowInputError(contextWindowOverrideText)
+    val contextError = contextWindowInputError(contextWindowOverrideTextState.text.toString())
 
     fun resetAutomaticReasoning() {
         reasoningOverrideActive = false
         val automaticCapabilities = if (nativeGemini) GeminiModelCapabilities.resolveReasoning(
-            model.copy(modelId = modelId, reasoningOverride = null, reasoningCapabilitiesOverride = null),
+            model.copy(modelId = modelIdState.text.toString(), reasoningOverride = null, reasoningCapabilitiesOverride = null),
         ) else model.reasoningCapabilities
         reasoningEnabled = if (nativeGemini) automaticCapabilities?.supportedEfforts.orEmpty().isNotEmpty()
             else model.reasoning == true
@@ -1022,9 +1051,9 @@ private fun ModelEditDialog(
     }
 
     fun updated(): Model = model.copy(
-        displayName = displayName.trim(),
-        modelId = modelId.trim(),
-        contextWindowOverride = contextWindowOverrideText.trim()
+        displayName = displayNameState.text.toString().trim(),
+        modelId = modelIdState.text.toString().trim(),
+        contextWindowOverride = contextWindowOverrideTextState.text.toString().trim()
             .takeIf(String::isNotEmpty)
             ?.toInt(),
         reasoningOverride = reasoningEnabled.takeIf { reasoningOverrideActive },
@@ -1046,29 +1075,41 @@ private fun ModelEditDialog(
         },
     )
 
-    val dialogTitle = if (isNew) context.getString(R.string.page_add_model_532a64) else context.getString(R.string.page_edit_model_29e31e)
-    val confirmText = if (isSaving) context.getString(R.string.page_saving_d70d42) else context.getString(R.string.page_save_fadf24)
+    val dialogTitle = stringResource(if (isNew) R.string.page_add_model_532a64 else R.string.page_edit_model_29e31e)
+    val confirmText = stringResource(if (isSaving) R.string.page_saving_d70d42 else R.string.page_save_fadf24)
+    val modelIdError = if (vertexGemini && modelIdState.text.isNotBlank() && !GeminiModelCapabilities.isGemini4(modelIdState.text.toString())) {
+        stringResource(R.string.provider_i18n_vertex_gemini4_only)
+    } else null
     val confirmEnabled = !isSaving &&
-        displayName.isNotBlank() &&
-        modelId.isNotBlank() &&
+        displayNameState.text.isNotBlank() &&
+        modelIdState.text.isNotBlank() &&
+        modelIdError == null &&
         contextError == null
-    val contextValue = contextWindowOverrideText.toIntOrNull()
-    val thinkingTitle = if (nativeGemini) "配置思考档位" else stringResource(R.string.ui_support_thinking_5b9e4c)
+    val contextValue = contextWindowOverrideTextState.text.toString().toIntOrNull()
+    val thinkingTitle = stringResource(
+        if (nativeGemini) R.string.provider_i18n_gemini_thinking_levels else R.string.ui_support_thinking_5b9e4c,
+    )
     val thinkingSummary = if (nativeGemini) {
-        "关闭时仅使用 Default，不发送档位参数；不会关闭模型自身的思考。"
+        stringResource(R.string.provider_i18n_gemini_thinking_summary)
     } else if (reasoningOverrideActive) {
         stringResource(R.string.page_covered_model_automatic_capabilities_3fa7d4)
     } else {
         stringResource(if (model.reasoning == true) R.string.provider_auto_reasoning_detected
             else R.string.provider_auto_reasoning_unknown)
     }
+    val effortHelp = stringResource(
+        when {
+            vertexGemini -> R.string.provider_i18n_vertex_effort_help
+            nativeGemini -> R.string.provider_i18n_gemini_effort_help
+            else -> R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d
+        },
+    )
 
     when (LocalUiStyle.current) {
         AppearanceUiStyle.COUI -> {
-            val dark = CouiTheme.isDark
-            val colors = CouiPageDefaults.themeColors(dark)
+            val colors = CouiPageDefaults.themeColors()
             val contextRightLabel = when {
-                contextWindowOverrideText.isBlank() -> null
+                contextWindowOverrideTextState.text.isBlank() -> null
                 contextError != null -> stringResource(R.string.provider_context_window_invalid)
                 contextValue != null -> stringResource(R.string.provider_context_window_value, formatCompactTokenCount(contextValue))
                 else -> null
@@ -1082,21 +1123,20 @@ private fun ModelEditDialog(
                 cancelEnabled = !isSaving,
                 onConfirm = { onSubmit(updated()) },
                 onDismissRequest = { if (!isSaving) onDismiss() },
+                onDismissFinished = onDismissFinished,
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     CouiTextField(
-                        value = displayName,
-                        onValueChange = { displayName = it },
+                        state = displayNameState,
                         label = stringResource(R.string.ui_display_name_ed16be),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     )
                     CouiTextField(
-                        value = modelId,
-                        onValueChange = { modelId = it },
+                        state = modelIdState,
                         label = "Model ID",
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
@@ -1106,11 +1146,11 @@ private fun ModelEditDialog(
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         CouiTextField(
-                            value = contextWindowOverrideText,
-                            onValueChange = { value -> contextWindowOverrideText = value.filter(Char::isDigit) },
+                            state = contextWindowOverrideTextState,
+                            inputTransformation = DecimalDigits,
                             label = stringResource(R.string.ui_context_length_tokens_227860),
                             rightLabel = contextRightLabel,
-                            rightLabelColor = if (contextError != null && contextWindowOverrideText.isNotBlank()) {
+                            rightLabelColor = if (contextError != null && contextWindowOverrideTextState.text.isNotBlank()) {
                                 StatusError
                             } else {
                                 colors.summary
@@ -1130,14 +1170,14 @@ private fun ModelEditDialog(
                                 EtaChoiceChip(
                                     text = formatCompactTokenCount(preset),
                                     selected = contextValue == preset,
-                                    onClick = { contextWindowOverrideText = preset.toString() },
+                                    onClick = { contextWindowOverrideTextState.setTextAndPlaceCursorAtEnd(preset.toString()) },
                                     enabled = !isSaving,
                                 )
                             }
                         }
                     }
 
-                    Divider(startIndent = 0.dp, endIndent = 0.dp)
+                    CouiDivider()
 
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
@@ -1173,8 +1213,6 @@ private fun ModelEditDialog(
                                     reasoningOverrideActive = true
                                     reasoningEnabled = enabled
                                 },
-                                dark = dark,
-                                colors = CouiSwitchDefaults.colors(colors.accent, dark),
                                 enabled = !isSaving,
                             )
                         }
@@ -1202,15 +1240,14 @@ private fun ModelEditDialog(
                                 }
                             }
                             CouiText(
-                                text = if (nativeGemini) "可手动选择档位，是否支持由服务端校验。Default 始终可用。"
-                                else stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
+                                text = effortHelp,
                                 kind = CouiTextKind.GroupFooter,
                                 color = colors.summary,
                             )
                         }
                     }
 
-                    error?.let { message ->
+                    (modelIdError ?: error)?.let { message ->
                         CouiText(
                             text = message,
                             kind = CouiTextKind.GroupFooter,
@@ -1267,22 +1304,18 @@ private fun ModelEditDialog(
                             .scrollEndHaptic()
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        TextField(
-                            value = displayName,
-                            onValueChange = { displayName = it },
+                        GlassTextField(
+                            state = displayNameState,
+                            lineLimits = TextFieldLineLimits.SingleLine,
                             label = stringResource(R.string.ui_display_name_ed16be),
-                            colors = glassOverlayTextFieldColors(),
-                            singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        TextField(
-                            value = modelId,
-                            onValueChange = { modelId = it },
+                        GlassTextField(
+                            state = modelIdState,
+                            lineLimits = TextFieldLineLimits.SingleLine,
                             label = "Model ID",
-                            colors = glassOverlayTextFieldColors(),
-                            singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Ascii,
                                 imeAction = ImeAction.Next,
@@ -1290,12 +1323,11 @@ private fun ModelEditDialog(
                             modifier = Modifier.fillMaxWidth(),
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        TextField(
-                            value = contextWindowOverrideText,
-                            onValueChange = { value -> contextWindowOverrideText = value.filter(Char::isDigit) },
+                        GlassTextField(
+                            state = contextWindowOverrideTextState,
+                            lineLimits = TextFieldLineLimits.SingleLine,
+                            inputTransformation = DecimalDigits,
                             label = stringResource(R.string.ui_context_length_tokens_227860),
-                            colors = glassOverlayTextFieldColors(),
-                            singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,
                                 imeAction = ImeAction.Done,
@@ -1311,14 +1343,14 @@ private fun ModelEditDialog(
                                 EtaChoiceChip(
                                     text = formatCompactTokenCount(preset),
                                     selected = contextValue == preset,
-                                    onClick = { contextWindowOverrideText = preset.toString() },
+                                    onClick = { contextWindowOverrideTextState.setTextAndPlaceCursorAtEnd(preset.toString()) },
                                     enabled = !isSaving,
                                 )
                             }
                         }
                         Text(
                             text = when {
-                                contextWindowOverrideText.isBlank() ->
+                                contextWindowOverrideTextState.text.isBlank() ->
                                     stringResource(R.string.provider_context_window_hint)
                                 contextError != null ->
                                     stringResource(R.string.provider_context_window_invalid)
@@ -1327,7 +1359,7 @@ private fun ModelEditDialog(
                                 else -> stringResource(R.string.provider_context_window_usage)
                             },
                             style = MiuixTheme.textStyles.footnote2,
-                            color = if (contextError != null && contextWindowOverrideText.isNotBlank()) {
+                            color = if (contextError != null && contextWindowOverrideTextState.text.isNotBlank()) {
                                 StatusError
                             } else {
                                 MiuixTheme.colorScheme.onSurfaceVariantSummary
@@ -1394,13 +1426,12 @@ private fun ModelEditDialog(
                             }
                         }
                         Text(
-                            text = if (nativeGemini) "可手动选择档位，是否支持由服务端校验。Default 始终可用。"
-                            else stringResource(R.string.ui_only_check_the_ranges_actually_supported_by_the_mode_2c343d),
+                            text = effortHelp,
                             style = MiuixTheme.textStyles.footnote2,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.padding(start = 4.dp, top = 8.dp),
                         )
-                        error?.let { message ->
+                        (modelIdError ?: error)?.let { message ->
                             Text(
                                 text = message,
                                 style = MiuixTheme.textStyles.footnote2,
@@ -1457,17 +1488,14 @@ private fun ModelEditDialog(
 }
 
 @Composable
-private fun capabilityTags(model: Model): List<String> {
-    val context = LocalContext.current
-    return buildList {
+private fun capabilityTags(model: Model): List<String> = buildList {
     add(
         model.effectiveContextWindow?.let { contextWindow ->
             stringResource(
                 R.string.provider_context_tag,
                 formatCompactTokenCount(contextWindow),
             )
-        } ?: context.getString(R.string.page_context_unknown_b6ae7b)
+        } ?: stringResource(R.string.page_context_unknown_b6ae7b)
     )
-    if (model.supportsReasoning) add(context.getString(R.string.page_support_thinking_5b9e4c))
-    }
+    if (model.supportsReasoning) add(stringResource(R.string.page_support_thinking_5b9e4c))
 }
