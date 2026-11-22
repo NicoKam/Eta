@@ -75,9 +75,15 @@ jobs:
 
       - name: 上报合并冲突
         if: steps.sync.outputs.conflicts == 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.has_issues' 2>/dev/null)" != "true" ]; then
+            echo "::warning::仓库已关闭 Issues，跳过 issue 上报。冲突文件："
+            cat /tmp/conflict-body.md
+            exit 0
+          fi
           gh label create upstream-sync -R "$GITHUB_REPOSITORY" --color "d93f0b" --description "上游同步冲突" 2>/dev/null || true
           existing=$(gh issue list -R "$GITHUB_REPOSITORY" --label upstream-sync --state open --json number --jq '.[0].number // empty')
           if [ -n "$existing" ]; then
@@ -89,6 +95,12 @@ jobs:
               --body-file /tmp/conflict-body.md \
               --label upstream-sync
           fi
+          exit 0
+
+      - name: 合并冲突则终止
+        if: steps.sync.outputs.conflicts == 'true'
+        run: |
+          echo "::error::上游 upstream/main 存在合并冲突，本次未构建。请本地解决后推送 main。"
           exit 1
 
       # 上游没动、当前 main 也和最近一次发版标签一致时，不重复消耗构建分钟数
