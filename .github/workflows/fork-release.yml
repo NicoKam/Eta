@@ -143,8 +143,28 @@ jobs:
         run: |
           upstream_name=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts | head -1)
           date=$(date +%Y%m%d)
+          # 同日跨上游版本共用序号，避免 versionCode 回退；已存在的 tag 不再覆盖。
+          git fetch --tags origin
+          max_revision=-1
+          while IFS= read -r tag; do
+            if [[ "$tag" =~ ^v.+-fork\.${date}(\.([0-9]+))?$ ]]; then
+              revision="${BASH_REMATCH[2]:-0}"
+              if [ "${#revision}" -gt 2 ] || [ "$((10#${revision}))" -gt 49 ]; then
+                echo "::error::当日 fork tag 序号超出 0–49：$tag"
+                exit 1
+              fi
+              revision=$((10#${revision}))
+              if [ "$revision" -gt "$max_revision" ]; then max_revision=$revision; fi
+            fi
+          done < <(git tag --list "v*-fork.${date}*")
+          revision=$((max_revision + 1))
+          if [ "$revision" -gt 49 ]; then
+            echo "::error::当日 fork 构建序号已用尽（0–49），请次日再发布。"
+            exit 1
+          fi
           fork_name="${upstream_name}-fork.${date}"
-          fork_code=$((10#${date} * 100 + 50))
+          if [ "$revision" -gt 0 ]; then fork_name="${fork_name}.${revision}"; fi
+          fork_code=$((10#${date} * 100 + 50 + revision))
           sed -i -E "s/^([[:space:]]*)versionCode = [0-9]+/\1versionCode = ${fork_code}/" app/build.gradle.kts
           sed -i -E "s/^([[:space:]]*)versionName = \"[^\"]+\"/\1versionName = \"${fork_name}\"/" app/build.gradle.kts
 
@@ -178,7 +198,13 @@ jobs:
           ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
           ETA_RELEASE_KEY_ALIAS: ${{ secrets.ETA_RELEASE_KEY_ALIAS }}
           ETA_RELEASE_KEY_PASSWORD: ${{ secrets.ETA_RELEASE_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon --no-configuration-cache :app:assembleRelease
+        run: |
+          ./gradlew --no-daemon --no-configuration-cache "-Peta.updateRepository=$GITHUB_REPOSITORY" \
+            :app:testDebugUnitTest --tests io.github.mangi.eta.data.update.AppUpdateCheckerTest \
+            :app:assembleRelease
+          report=app/build/test-results/testDebugUnitTest/TEST-io.github.mangi.eta.data.update.AppUpdateCheckerTest.xml
+          echo "更新检查测试报告：$report"
+          grep -m1 '<testsuite ' "$report"
 
       - name: 校验 APK
         id: apk
@@ -202,13 +228,14 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           APK: ${{ steps.apk.outputs.path }}
         run: |
-          notes=$(printf 'Fork 构建，包含「回车发送」开关。\n\n- 上游提交：%s\n- 版本号：%s\n' \
-            "${{ steps.sync.outputs.upstream }}" "${{ steps.version.outputs.name }}")
-          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" -R "$GITHUB_REPOSITORY" --clobber
-          else
-            gh release create "$TAG" "$APK" -R "$GITHUB_REPOSITORY" \
-              --target "$(git rev-parse HEAD)" \
-              --title "$TAG" \
-              --notes "$notes"
-          fi
+          fork_commit=$(git rev-parse HEAD)
+          notes=$(printf 'Fork 构建，包含「回车发送」开关。\n\n- 上游提交：%s\n- Fork 提交：%s\n- 更新仓库：%s\n- 版本号：%s\n' \
+            "${{ steps.sync.outputs.upstream }}" "$fork_commit" "$GITHUB_REPOSITORY" "${{ steps.version.outputs.name }}")
+          # 先以非强制推送占用新 tag；若已存在则失败，不覆盖历史 APK 或 tag 来源。
+          git tag "$TAG" "$fork_commit"
+          git push origin "refs/tags/$TAG"
+          gh release create "$TAG" "$APK" -R "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --target "$fork_commit" \
+            --title "$TAG" \
+            --notes "$notes"

@@ -1,5 +1,6 @@
 package io.github.mangi.eta.data.update
 
+import io.github.mangi.eta.BuildConfig
 import io.github.mangi.eta.R
 import io.github.mangi.eta.core.AppStrings
 import java.io.IOException
@@ -18,14 +19,15 @@ internal data class AppLatestRelease(
  * 应用更新检查：读取 GitHub 最新 Release 并与当前版本比较。
  *
  * 版本号遵循发版流程的 v 前缀 + 点分数字约定（v3.0.6），比较按段进行：两段都是数字时
- * 按数值比较，否则按字符串比较。当前版本的构建类型后缀（-debug）与 CI 构建元数据（+提交号）不参与比较。
+ * 按数值比较，否则按字符串比较。上游版本相同时比较 fork 日期与修订号；构建类型后缀（-debug）
+ * 与 CI 构建元数据（+提交号）不参与比较。
  * 所有网络与响应错误统一抛 [IOException]，由调用方提示。
  */
 internal object AppUpdateChecker {
 
-    fun fetchLatest(): AppLatestRelease {
+    fun fetchLatest(releaseUrl: String = latestReleaseUrl()): AppLatestRelease {
         val request = Request.Builder()
-            .url(LATEST_RELEASE_URL)
+            .url(releaseUrl)
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", USER_AGENT)
             .build()
@@ -64,22 +66,34 @@ internal object AppUpdateChecker {
     }
 
     fun isNewer(latest: String, current: String): Boolean {
-        val latestParts = latest.removePrefix("v").split('.')
-        val currentParts =
-            current.removePrefix("v").substringBefore('+').substringBefore('-').split('.')
-        for (index in 0 until maxOf(latestParts.size, currentParts.size)) {
-            val latestPart = latestParts.getOrNull(index) ?: "0"
-            val currentPart = currentParts.getOrNull(index) ?: "0"
-            val latestNumber = latestPart.toIntOrNull()
-            val currentNumber = currentPart.toIntOrNull()
-            if (latestNumber != null && currentNumber != null) {
-                if (latestNumber != currentNumber) return latestNumber > currentNumber
+        val latestVersion = latest.removePrefix("v").substringBefore('+').removeSuffix("-debug")
+        val currentVersion = current.removePrefix("v").substringBefore('+').removeSuffix("-debug")
+        val compared = compareParts(
+            latestVersion.substringBefore('-').split('.'),
+            currentVersion.substringBefore('-').split('.'),
+        )
+        if (compared != 0) return compared > 0
+        // 上游版本相同时再比较 fork 的日期与当日修订号；首包等价于修订 0。
+        return compareParts(forkParts(latestVersion), forkParts(currentVersion)) > 0
+    }
+
+    private fun forkParts(version: String): List<String> =
+        version.substringAfter("-fork.", "").takeIf { it.isNotEmpty() }?.split('.').orEmpty()
+
+    private fun compareParts(latest: List<String>, current: List<String>): Int {
+        for (index in 0 until maxOf(latest.size, current.size)) {
+            val latestPart = latest.getOrNull(index) ?: "0"
+            val currentPart = current.getOrNull(index) ?: "0"
+            val latestNumber = latestPart.toLongOrNull()
+            val currentNumber = currentPart.toLongOrNull()
+            val compared = if (latestNumber != null && currentNumber != null) {
+                latestNumber.compareTo(currentNumber)
             } else {
-                val compared = latestPart.compareTo(currentPart)
-                if (compared != 0) return compared > 0
+                latestPart.compareTo(currentPart)
             }
+            if (compared != 0) return compared
         }
-        return false
+        return 0
     }
 
     private val client = OkHttpClient.Builder()
@@ -87,6 +101,7 @@ internal object AppUpdateChecker {
         .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
-    private const val LATEST_RELEASE_URL = "https://api.github.com/repos/Mangi-11/Eta/releases/latest"
+    internal fun latestReleaseUrl(repository: String = BuildConfig.UPDATE_REPOSITORY): String =
+        "https://api.github.com/repos/$repository/releases/latest"
     private const val USER_AGENT = "Eta-Update-Checker"
 }

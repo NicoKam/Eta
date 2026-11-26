@@ -29,6 +29,12 @@ require(buildMetadata == null || buildMetadata.matches(Regex("[0-9A-Za-z.-]+")))
 }
 val buildMetadataSuffix = buildMetadata?.let { "+$it" }.orEmpty()
 
+// Fork 构建可指定自己的更新仓库；官方构建继续检查上游。
+val updateRepository = providers.gradleProperty("eta.updateRepository").getOrElse("Mangi-11/Eta")
+require(updateRepository.matches(Regex("[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"))) {
+    "eta.updateRepository 必须为 GitHub owner/repo"
+}
+
 android {
     namespace = "io.github.mangi.eta"
     compileSdk {
@@ -40,6 +46,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.mangi.eta"
+        buildConfigField("String", "UPDATE_REPOSITORY", "\"$updateRepository\"")
         minSdk = 34
         targetSdk = 37
         // versionCode 规则：yyyyMMdd + 两位当日序号（01 起），发版时随 versionName 一起手动递增。
