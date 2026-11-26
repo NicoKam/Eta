@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="settings_send_on_enter">Enter 傳送</string>
+  <string name="settings_send_on_enter_summary">讓輸入法把 Enter 鍵顯示為傳送鍵，按 Enter 直接傳送；外接鍵盤時 Shift+Enter 換行</string>
+</resources>

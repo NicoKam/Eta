@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="settings_send_on_enter">Enter to send</string>
+  <string name="settings_send_on_enter_summary">Turn the keyboard enter key into a send key and submit immediately; Shift+Enter inserts a newline</string>
+</resources>

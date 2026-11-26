@@ -1530,8 +1530,4 @@
   <string name="scheduled_notification_gui_ready_title">定时任务就绪：%1$s</string>
   <string name="scheduled_action_run_now">立即试跑</string>
   <string name="scheduled_action_stop">停止运行</string>
-
-  <!-- Fork-only chat input settings. -->
-  <string name="settings_send_on_enter">回车发送</string>
-  <string name="settings_send_on_enter_summary">让输入法把回车键显示为发送键，按回车直接发送；外接键盘时 Shift+回车换行</string>
 </resources>

@@ -1549,8 +1549,4 @@
   <string name="scheduled_notification_gui_ready_title">Ready to run: %1$s</string>
   <string name="scheduled_action_run_now">Run now</string>
   <string name="scheduled_action_stop">Stop</string>
-
-  <!-- Fork-only chat input settings. -->
-  <string name="settings_send_on_enter">Enter to send</string>
-  <string name="settings_send_on_enter_summary">Turn the keyboard enter key into a send key and submit immediately; Shift+Enter inserts a newline</string>
 </resources>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="settings_send_on_enter">回车发送</string>
+  <string name="settings_send_on_enter_summary">让输入法把回车键显示为发送键，按回车直接发送；外接键盘时 Shift+回车换行</string>
+</resources>
